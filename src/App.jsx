@@ -351,41 +351,45 @@ function SPKPreview({ form, amounts }) {
   const seq = useMemo(
     () =>
       form.spkNumber ||
-      makeDocNumber("SPK", nextSequence("spk_seq"), new Date(form.spkIssueDate)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+      makeDocNumber(
+        "SPK",
+        nextSequence("spk_seq"),
+        new Date(form.spkIssueDate)
+      ),
+    [] // freeze di render pertama
   );
   form.spkNumber = seq;
 
+  const issueDate = new Date(form.spkIssueDate);
+
   return (
-    <div className="p-8 text-slate-900 leading-relaxed bg-white">
-      <h2 className="text-center text-xl font-bold mb-1">
-        SURAT PERJANJIAN KERJASAMA
-      </h2>
-      <p className="text-center mb-6">
-        “SOCIAL MEDIA ENDORSER/INFLUENCER”
-        <br />
-        NO: {seq}
-      </p>
-      <p className="mb-3">
+    <div className="spk-print">
+      <h2>SURAT PERJANJIAN KERJASAMA</h2>
+      <div className="spk-subtitle">
+        <span>“SOCIAL MEDIA ENDORSER/INFLUENCER”</span>
+        <span>NO: {seq}</span>
+      </div>
+
+      <p>
         Pada hari{" "}
-        {new Date(form.spkIssueDate).toLocaleDateString("id-ID", {
+        {issueDate.toLocaleDateString("id-ID", {
           weekday: "long",
           day: "2-digit",
           month: "long",
           year: "numeric",
         })}{" "}
-        bertempat di Jakarta Selatan dibuat sebagai Surat Perjanjian Kerjasama
-        ("Perjanjian"), oleh dan antara:
+        bertempat di Jakarta Selatan, dibuat dan ditandatangani Surat
+        Perjanjian Kerjasama (&quot;Perjanjian&quot;), oleh dan antara:
       </p>
-      <p className="mb-2">
+
+      <p>
         <b>David Jr. M</b>, selaku Direktur Savvy Digital beralamat di{" "}
-        {form.companyAddress} mewakili klien dalam kampanye{" "}
+        {form.companyAddress}, mewakili klien dalam kampanye{" "}
         <b>{form.campaignName || "-"}</b>, selanjutnya disebut{" "}
         <b>PIHAK PERTAMA</b>; dengan:
       </p>
 
-      <div className="border rounded-xl p-3 mb-4">
+      <div className="spk-box">
         <p>
           <b>Nama</b>: {form.kolName || "-"}
         </p>
@@ -400,102 +404,152 @@ function SPKPreview({ form, amounts }) {
         </p>
       </div>
 
-      <p className="mb-4">
-        PIHAK PERTAMA sepakat untuk bekerjasama dengan PIHAK KEDUA dengan
-        lingkup pekerjaan berikut:
+      <p>
+        PIHAK PERTAMA dan PIHAK KEDUA secara bersama-sama disebut
+        sebagai &quot;Para Pihak&quot;, dan secara sendiri-sendiri
+        disebut sebagai &quot;Pihak&quot;.
       </p>
 
-      <h3 className="font-semibold mb-2">PASAL 1 - RUANG LINGKUP PEKERJAAN</h3>
-      <ol className="list-decimal ml-6 mb-4">
-        <li className="mb-2">
-          PIHAK KEDUA akan melakukan pekerjaan berikut:
-          <ul className="list-disc ml-6 mt-1">
-            <li>{form.deliverableDesc || "-"} sesuai brief PIHAK PERTAMA.</li>
-            <li>Mengirim insight/hasil posting maksimal 7 (tujuh) hari setelah tayang.</li>
+      <p className="spk-section-title">PASAL 1 - RUANG LINGKUP PEKERJAAN</p>
+      <ol>
+        <li>
+          PIHAK KEDUA akan melakukan pekerjaan sebagai berikut:
+          <ul>
+            <li>
+              {form.deliverableDesc || "-"} sesuai brief yang
+              diberikan oleh PIHAK PERTAMA.
+            </li>
+            <li>
+              Mengirimkan insight / hasil posting maksimal 7 (tujuh)
+              hari kalender setelah konten tayang.
+            </li>
           </ul>
         </li>
-        <li className="mb-2">
-          Script/storyline diserahkan paling lambat H+3 setelah tanggal
-          perjanjian.
+        <li>
+          Script / storyline diserahkan paling lambat H+3 (tiga hari
+          kalender) setelah tanggal perjanjian ini.
         </li>
-        <li className="mb-2">
+        <li>
           Draft final video diserahkan paling lambat tanggal{" "}
-          {new Date(form.uploadDeadline).toLocaleDateString("id-ID")}.
+          {issueDate.toLocaleDateString("id-ID")}.
         </li>
-        <li className="mb-2">
-          Unggah konten yang telah disetujui paling lambat tanggal{" "}
-          {new Date(form.uploadDeadline).toLocaleDateString("id-ID")} atau
-          tanggal lain yang ditetapkan PIHAK PERTAMA.
+        <li>
+          Unggah konten yang telah disetujui PIHAK PERTAMA paling
+          lambat tanggal{" "}
+          {new Date(form.uploadDeadline).toLocaleDateString("id-ID")}{" "}
+          atau pada tanggal lain yang disepakati PIHAK PERTAMA.
         </li>
       </ol>
 
-      <h3 className="font-semibold mb-2">PASAL 2 - PEMBAYARAN</h3>
-      <ol className="list-decimal ml-6 mb-4">
+      <p className="spk-section-title">PASAL 2 - PEMBAYARAN</p>
+      <ol>
         <li>
-          PIHAK KEDUA wajib mengirim invoice/kwitansi bermaterai
-          (digital/cetak).
+          PIHAK KEDUA wajib mengirim invoice / kwitansi bermaterai
+          (digital / cetak) kepada PIHAK PERTAMA setelah kewajiban
+          pada Pasal 1 terpenuhi.
         </li>
         <li>
-          Pembayaran oleh PIHAK PERTAMA dilakukan selambat-lambatnya H+15
-          setelah konten diunggah.
+          Pembayaran oleh PIHAK PERTAMA dilakukan selambat-lambatnya
+          H+15 (lima belas hari kalender) setelah konten diunggah dan
+          seluruh dokumen pendukung diterima dengan lengkap.
         </li>
         <li>
-          Remunerasi sebesar <b>{idr(form.feeInput)}</b> dengan skema{" "}
-          {form.grossUp ? "gross-up (target net)" : "non gross-up"}. Potongan /
-          penambahan pajak mengikuti profil berikut:
+          Remunerasi disepakati sebesar{" "}
+          <b>{idr(form.feeInput)}</b> dengan skema{" "}
+          {form.grossUp
+            ? "gross-up (target net KOL)"
+            : "non gross-up"}. Potongan dan penambahan pajak mengikuti
+          profil pajak sebagai berikut:
         </li>
       </ol>
 
-      <div className="border rounded-xl p-3 mb-4 text-sm">
+      <div className="spk-box">
         <p>
-          <b>DPP (Gross)</b>: {idr(amounts.gross)} | <b>PPh</b>:{" "}
-          {idr(amounts.withholding)} | <b>PPN</b>: {idr(amounts.vatAmount)} |{" "}
+          <b>DPP (Gross)</b>: {idr(amounts.gross)}
+        </p>
+        <p>
+          <b>PPh</b>: {idr(amounts.withholding)}
+        </p>
+        <p>
+          <b>PPN</b>: {idr(amounts.vatAmount)}
+        </p>
+        <p>
           <b>Net ke KOL</b>: {idr(amounts.netToKOL)}
         </p>
       </div>
 
-      <p className="mb-4">
-        Pembayaran akan ditransfer ke rekening:
-        <br />
-        <b>Bank</b>: {form.kolBankName || "-"} | <b>No.</b>:{" "}
-        {form.kolBankAcc || "-"} | <b>a.n.</b>{" "}
-        {form.kolBankHolder || form.kolName || "-"}
+      <p>
+        Pembayaran akan ditransfer ke rekening berikut:
+      </p>
+      <div className="spk-box">
+        <p>
+          <b>Bank</b>: {form.kolBankName || "-"}
+        </p>
+        <p>
+          <b>No. Rekening</b>: {form.kolBankAcc || "-"}
+        </p>
+        <p>
+          <b>a.n.</b> {form.kolBankHolder || form.kolName || "-"}
+        </p>
+      </div>
+
+      <p className="spk-section-title">
+        PASAL 5 - PERNYATAAN DAN JAMINAN
+      </p>
+      <p>
+        PIHAK KEDUA menyatakan akan bertindak secara profesional,
+        menjaga nama baik PIHAK PERTAMA dan klien, serta tidak
+        melakukan tindakan yang dapat merugikan reputasi Para Pihak.
+        PIHAK KEDUA bertanggung jawab penuh atas seluruh konten,
+        pernyataan, dan tindakan yang dilakukan di akun media sosial
+        miliknya sepanjang terkait dengan pelaksanaan Perjanjian ini.
+      </p>
+      <p>
+        PIHAK KEDUA tidak akan membocorkan rahasia dagang, data
+        internal, maupun informasi lain milik PIHAK PERTAMA dan/atau
+        klien tanpa persetujuan tertulis terlebih dahulu dari PIHAK
+        PERTAMA. Apabila PIHAK KEDUA gagal memenuhi kewajiban pada
+        Pasal 1, maka PIHAK KEDUA dinyatakan wanprestasi dan wajib
+        mengembalikan remunerasi yang telah diterima (apabila ada)
+        kepada PIHAK PERTAMA.
       </p>
 
-      <h3 className="font-semibold mb-2">PASAL 5 - PERNYATAAN DAN JAMINAN</h3>
-      <p className="mb-4">
-        PIHAK KEDUA menyatakan bertindak profesional, menjaga nama baik PIHAK
-        PERTAMA, serta bertanggung jawab atas seluruh tindakan dan tidak
-        membocorkan rahasia pekerjaan. Apabila PIHAK KEDUA gagal memenuhi
-        Pasal 1, PIHAK KEDUA dinyatakan wanprestasi dan wajib mengembalikan
-        remunerasi yang telah diterima.
+      <p className="spk-section-title">PASAL 6 - PENUTUP</p>
+      <p>
+        Segala perselisihan yang timbul dari Perjanjian ini akan
+        diselesaikan terlebih dahulu secara musyawarah untuk mufakat.
+        Apabila tidak tercapai mufakat, Para Pihak sepakat untuk
+        memilih domisili hukum tetap pada Pengadilan di wilayah
+        Jakarta Selatan.
+      </p>
+      <p>
+        Perubahan atas Perjanjian ini hanya dapat dilakukan secara
+        tertulis dan ditandatangani oleh Para Pihak, dan menjadi
+        bagian yang tidak terpisahkan dari Perjanjian ini.
       </p>
 
-      <h3 className="font-semibold mb-2">PASAL 6 - PENUTUP</h3>
-      <p className="mb-4">
-        Sengketa diselesaikan musyawarah; apabila gagal, para pihak sepakat
-        memilih domisili hukum pada Pengadilan di wilayah Jakarta Selatan.
-        Perubahan perjanjian dibuat tertulis dan menjadi bagian tak
-        terpisahkan.
-      </p>
-
-      <div className="mt-6 grid grid-cols-2 gap-12 text-sm">
-        <div>
-          <p>Jakarta, {new Date(form.spkIssueDate).toLocaleDateString("id-ID")}</p>
-          <p className="mt-8">Savvy Digital – PIHAK PERTAMA</p>
-          <div className="h-16" />
-          <p className="font-semibold">David Jr. M</p>
+      <div className="spk-signature-row">
+        <div className="spk-signature-block">
+          <p>
+            Jakarta, {issueDate.toLocaleDateString("id-ID")}
+          </p>
+          <p className="spk-signature-label">
+            Savvy Digital – PIHAK PERTAMA
+          </p>
+          <p className="spk-signature-name">David Jr. M</p>
         </div>
-        <div>
+        <div className="spk-signature-block">
           <p>&nbsp;</p>
-          <p className="mt-8">PIHAK KEDUA</p>
-          <div className="h-16" />
-          <p className="font-semibold">{form.kolName || "(Nama KOL)"}</p>
+          <p className="spk-signature-label">PIHAK KEDUA</p>
+          <p className="spk-signature-name">
+            {form.kolName || "(Nama KOL)"}
+          </p>
         </div>
       </div>
     </div>
   );
 }
+
 
 function InvoicePreview({ form, amounts }) {
   const invSeq = useMemo(
