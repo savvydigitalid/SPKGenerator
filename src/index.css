@@ -4,7 +4,7 @@
 /* ====== SPK PRINT LAYOUT (BIAR RAPI DI PDF) ====== */
 
 .spk-print {
-  width: 794px; /* kira-kira lebar A4 di 96dpi */
+  width: 600px;           /* kolom kayak di Word */
   max-width: 100%;
   margin: 0 auto;
   background: #ffffff;
@@ -13,6 +13,7 @@
   font-size: 11pt;
   line-height: 1.6;
 }
+
 
 .spk-print h2 {
   text-align: center;
