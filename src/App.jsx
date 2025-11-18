@@ -260,89 +260,63 @@ function Toggle({ checked, onChange }) {
 /*********************************
  * PDF Export (solid + fallback)
  *********************************/
+// GANTI seluruh function lama dengan ini
 async function downloadDivAsPDF(div, filename) {
   if (!div) {
     alert("Elemen tidak ditemukan untuk diekspor.");
     return;
   }
+
   try {
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    if (typeof globalThis !== "undefined") {
-      // @ts-ignore
-      globalThis.html2canvas = html2canvas;
-    }
-
-    const clone = div.cloneNode(true);
-    clone.style.background = "#ffffff";
-    clone.style.padding = "24px";
-    clone.style.boxShadow = "none";
-    clone.style.maxWidth = "794px"; // ~A4
-    clone.style.position = "fixed";
-    clone.style.top = "-10000px";
-    clone.style.left = "0";
-    document.body.appendChild(clone);
-
-    await new Promise((r) => requestAnimationFrame(() => r()));
-
-    const pdf = new jsPDF("p", "pt", "a4");
-    await pdf.html(clone, {
-      margin: [24, 24, 24, 24],
-      autoPaging: "text",
-      x: 0,
-      y: 0,
-      html2canvas: {
-        scale: 1,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        windowWidth: clone.scrollWidth || 794,
-      },
+    // Foto tampilan yang sudah rapi di layar
+    const rect = div.getBoundingClientRect();
+    const canvas = await html2canvas(div, {
+      scale: 2, // biar tajem
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      width: rect.width,
+      height: rect.height,
+      windowWidth: document.documentElement.clientWidth,
     });
-    document.body.removeChild(clone);
-    pdf.save(filename);
-  } catch (e) {
-    console.warn("jsPDF.html failed, trying raster fallback", e);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
 
-      const canvas = await html2canvas(div, {
-        scale: 1.2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        windowWidth: div.scrollWidth || 1024,
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "pt", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 24;
-      const imgWidth = pageWidth - margin * 2;
-      const imgHeight = canvas.height * (imgWidth / canvas.width);
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("p", "pt", "a4");
 
-      let heightLeft = imgHeight;
-      let position = margin;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 24;
 
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = margin;
+
+    // Halaman pertama
+    pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight - margin * 2;
+
+    // Kalau kontennya panjang, potong jadi multi page
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = margin - (imgHeight - heightLeft);
       pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
       heightLeft -= pageHeight - margin * 2;
-
-      while (heightLeft > 0) {
-        pdf.addPage();
-        position = margin - (imgHeight - heightLeft);
-        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight - margin * 2;
-      }
-      pdf.save(filename);
-    } catch (err) {
-      console.error("PDF export failed", err);
-      alert(
-        "Gagal membuat PDF. Coba perkecil konten atau ubah skala. Detail: " +
-          (err?.message || err)
-      );
     }
+
+    pdf.save(filename);
+  } catch (err) {
+    console.error("PDF export failed", err);
+    alert(
+      "Gagal membuat PDF. Coba lagi, atau kabari gue error-nya apa. Detail: " +
+        (err?.message || err)
+    );
   }
 }
+
 
 /*********************************
  * Previews
