@@ -293,7 +293,7 @@ async function downloadDivAsPDF(div, filename) {
 
     // ===== DI SINI KUNCI SKALANYA =====
     // kita perkecil sedikit supaya gak mepet pinggir & gak kegedean
-    const scaleFactor = 0.8; // kalau masih kebesaran, bisa diturunin ke 0.75 / 0.7
+    const scaleFactor = 0.65; // kalau masih kebesaran, bisa diturunin ke 0.75 / 0.7
     const imgWidth = availableWidth * scaleFactor;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
