@@ -1,3 +1,86 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* ====== SPK PRINT LAYOUT (BIAR RAPI DI PDF) ====== */
+
+.spk-print {
+  width: 794px; /* kira-kira lebar A4 di 96dpi */
+  max-width: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 32px 40px;
+  font-size: 11pt;
+  line-height: 1.6;
+}
+
+.spk-print h2 {
+  text-align: center;
+  font-size: 14pt;
+  font-weight: 700;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.spk-print .spk-subtitle {
+  text-align: center;
+  font-size: 11pt;
+  margin-bottom: 16px;
+}
+
+.spk-print .spk-subtitle span {
+  display: block;
+}
+
+.spk-print p {
+  margin: 0 0 8px;
+  text-align: justify;
+}
+
+.spk-print ol {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+
+.spk-print ul {
+  margin: 4px 0 4px 0;
+  padding-left: 18px;
+  list-style-type: disc;
+}
+
+.spk-print .spk-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 10.5pt;
+}
+
+.spk-print .spk-box p {
+  margin-bottom: 4px;
+}
+
+.spk-print .spk-section-title {
+  font-weight: 600;
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+}
+
+.spk-print .spk-signature-row {
+  margin-top: 24px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.spk-print .spk-signature-block {
+  width: 48%;
+  font-size: 11pt;
+}
+
+.spk-print .spk-signature-label {
+  margin-bottom: 40px;
+}
+
+.spk-print .spk-signature-name {
+  font-weight: 600;
+}
