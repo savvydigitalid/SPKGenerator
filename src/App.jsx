@@ -289,10 +289,11 @@ async function downloadDivAsPDF(div, filename) {
     const pageWidth = pdf.internal.pageSize.getWidth();   // ~595pt
     const pageHeight = pdf.internal.pageSize.getHeight(); // ~842pt
 
-    const marginX = 40;  // margin kiri-kanan
-    const marginY = 40;  // margin atas-bawah
+    // >>> Biar gak kepotong kanan, margin dibesarin sedikit
+    const marginX = 55;  // kiri-kanan ~2 cm lebih
+    const marginY = 40;  // atas-bawah
 
-    // Fit lebar A4 (minus margin), tanpa center berlebihan
+    // Fit lebar A4 (minus margin)
     const imgWidth = pageWidth - marginX * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
