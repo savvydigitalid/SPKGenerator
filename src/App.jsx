@@ -270,63 +270,67 @@ async function downloadDivAsPDF(div, filename) {
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    // Render elemen SPK ke satu canvas panjang, tajem (scale 2)
+    // Render seluruh SPK ke satu canvas panjang
     const rect = div.getBoundingClientRect();
     const mainCanvas = await html2canvas(div, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
       width: rect.width,
-      // tinggi pakai scrollHeight biar semua konten kepoto
       height: div.scrollHeight,
-      windowWidth: rect.width
+      windowWidth: rect.width,
     });
 
     const pdf = new jsPDF("p", "pt", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();    // ~595 pt
-    const pageHeight = pdf.internal.pageSize.getHeight();  // ~842 pt
+    const pageWidth = pdf.internal.pageSize.getWidth();   // ~595 pt
+    const pageHeight = pdf.internal.pageSize.getHeight(); // ~842 pt
 
-    const marginX = 55;   // kiri-kanan
-    const marginY = 55;   // atas-bawah
+    const marginX = 55;
+    const marginY = 55;
 
     const contentWidthPt = pageWidth - marginX * 2;
     const contentHeightPt = pageHeight - marginY * 2;
 
-    // Skala: sesuaikan lebar surat ke lebar area konten
+    // Skala supaya lebar surat pas ke area konten PDF
     const scale = contentWidthPt / mainCanvas.width;
 
-    // Tinggi konten per halaman dalam px canvas
-    const pageHeightPx = contentHeightPt / scale;
-    const totalHeightPx = mainCanvas.height;
+    // Tinggi konten per halaman dalam satuan px (dibulatkan)
+    const pageHeightPx = Math.floor(contentHeightPt / scale);
 
+    const totalHeightPx = mainCanvas.height;
     let currentY = 0;
     let pageIndex = 0;
 
     while (currentY < totalHeightPx) {
-      const sliceHeightPx = Math.min(pageHeightPx, totalHeightPx - currentY);
+      const remainingPx = totalHeightPx - currentY;
+      const sliceHeightPx = Math.min(pageHeightPx, remainingPx);
 
-      // Canvas per halaman
+      // Selalu pakai integer buat tinggi canvas
+      const sliceHeightInt = Math.ceil(sliceHeightPx);
+      const sourceY = Math.floor(currentY);
+
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = mainCanvas.width;
-      pageCanvas.height = sliceHeightPx;
+      pageCanvas.height = sliceHeightInt;
       const ctx = pageCanvas.getContext("2d");
 
+      // Copy bagian yang relevan dari canvas utama
       ctx.drawImage(
         mainCanvas,
         0,
-        currentY,
+        sourceY,
         mainCanvas.width,
-        sliceHeightPx,
+        sliceHeightInt,
         0,
         0,
         mainCanvas.width,
-        sliceHeightPx
+        sliceHeightInt
       );
 
-      // Pakai JPEG + kompres quality biar ukuran kecil
+      // JPEG + kompres supaya ukuran file kecil
       const imgData = pageCanvas.toDataURL("image/jpeg", 0.7);
       const imgWidthPt = contentWidthPt;
-      const imgHeightPt = sliceHeightPx * scale;
+      const imgHeightPt = sliceHeightInt * scale;
 
       if (pageIndex > 0) {
         pdf.addPage();
@@ -341,7 +345,8 @@ async function downloadDivAsPDF(div, filename) {
         imgHeightPt
       );
 
-      currentY += sliceHeightPx;
+      // Geser ke bawah sesuai tinggi slice yang dipakai
+      currentY += sliceHeightInt;
       pageIndex += 1;
     }
 
