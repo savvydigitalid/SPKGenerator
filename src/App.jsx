@@ -270,12 +270,12 @@ async function downloadDivAsPDF(div, filename) {
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    // Ambil ukuran asli elemen SPK
+    // Render elemen SPK jadi satu canvas panjang
     const width = div.scrollWidth;
     const height = div.scrollHeight;
 
-    const canvas = await html2canvas(div, {
-      scale: 2,              // resolusi tajam
+    const mainCanvas = await html2canvas(div, {
+      scale: 2,              // tajam tapi masih ringan
       useCORS: true,
       backgroundColor: "#ffffff",
       width,
@@ -283,33 +283,71 @@ async function downloadDivAsPDF(div, filename) {
       windowWidth: width,
     });
 
-    const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF("p", "pt", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();    // ~595 pt
+    const pageHeight = pdf.internal.pageSize.getHeight();  // ~842 pt
 
-    const pageWidth = pdf.internal.pageSize.getWidth();   // ~595pt
-    const pageHeight = pdf.internal.pageSize.getHeight(); // ~842pt
+    const marginX = 55;   // kiri-kanan
+    const marginY = 55;   // atas-bawah (dibesarin biar cantik)
 
-    // >>> Biar gak kepotong kanan, margin dibesarin sedikit
-    const marginX = 55;  // kiri-kanan ~2 cm lebih
-    const marginY = 40;  // atas-bawah
+    // Konten di PDF (tanpa margin)
+    const contentWidthPt = pageWidth - marginX * 2;
+    const contentHeightPt = pageHeight - marginY * 2;
 
-    // Fit lebar A4 (minus margin)
-    const imgWidth = pageWidth - marginX * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    // Skala: 1 px di canvas = ? pt di PDF
+    const scale = contentWidthPt / mainCanvas.width;
 
-    let y = marginY;
-    let heightLeft = imgHeight;
+    // Tinggi konten per halaman dalam satuan px canvas
+    const pageHeightPx = contentHeightPt / scale;
 
-    // Halaman pertama
-    pdf.addImage(imgData, "PNG", marginX, y, imgWidth, imgHeight);
-    heightLeft -= pageHeight - marginY * 2;
+    const totalHeightPx = mainCanvas.height;
+    let currentY = 0;
+    let pageIndex = 0;
 
-    // Kalau konten lebih dari 1 halaman, potong vertikal
-    while (heightLeft > 0) {
-      pdf.addPage();
-      y = marginY - (imgHeight - heightLeft);
-      pdf.addImage(imgData, "PNG", marginX, y, imgWidth, imgHeight);
-      heightLeft -= pageHeight - marginY * 2;
+    const ctxSrc = mainCanvas.getContext("2d");
+
+    while (currentY < totalHeightPx) {
+      const sliceHeightPx = Math.min(pageHeightPx, totalHeightPx - currentY);
+
+      // Canvas sementara untuk potongan halaman ini
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = mainCanvas.width;
+      pageCanvas.height = sliceHeightPx;
+      const pageCtx = pageCanvas.getContext("2d");
+
+      // Copy bagian yang relevan dari canvas utama
+      pageCtx.drawImage(
+        mainCanvas,
+        0,
+        currentY,
+        mainCanvas.width,
+        sliceHeightPx,
+        0,
+        0,
+        mainCanvas.width,
+        sliceHeightPx
+      );
+
+      const imgData = pageCanvas.toDataURL("image/png");
+      const imgWidthPt = contentWidthPt;
+      const imgHeightPt = sliceHeightPx * scale;
+
+      if (pageIndex > 0) {
+        pdf.addPage();
+      }
+
+      // Tempel di posisi yang sama di tiap halaman
+      pdf.addImage(
+        imgData,
+        "PNG",
+        marginX,
+        marginY,
+        imgWidthPt,
+        imgHeightPt
+      );
+
+      currentY += sliceHeightPx;
+      pageIndex += 1;
     }
 
     pdf.save(filename);
