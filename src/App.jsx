@@ -270,16 +270,17 @@ async function downloadDivAsPDF(div, filename) {
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    const rect = div.getBoundingClientRect();
+    // Ambil ukuran asli elemen SPK
+    const width = div.scrollWidth;
+    const height = div.scrollHeight;
 
-    // Foto tampilan SPK yang sudah rapi
     const canvas = await html2canvas(div, {
-      scale: 2, // kualitas tajam
+      scale: 2,              // resolusi tajam
       useCORS: true,
       backgroundColor: "#ffffff",
-      width: rect.width,
-      height: rect.height,
-      windowWidth: document.documentElement.clientWidth,
+      width,
+      height,
+      windowWidth: width,
     });
 
     const imgData = canvas.toDataURL("image/png");
@@ -288,42 +289,34 @@ async function downloadDivAsPDF(div, filename) {
     const pageWidth = pdf.internal.pageSize.getWidth();   // ~595pt
     const pageHeight = pdf.internal.pageSize.getHeight(); // ~842pt
 
-    const margin = 32; // margin luar
-    const availableWidth = pageWidth - margin * 2;
+    const marginX = 40;  // margin kiri-kanan
+    const marginY = 40;  // margin atas-bawah
 
-    // ===== DI SINI KUNCI SKALANYA =====
-    // kita perkecil sedikit supaya gak mepet pinggir & gak kegedean
-    const scaleFactor = 0.35; // kalau masih kebesaran, bisa diturunin ke 0.75 / 0.7
-    const imgWidth = availableWidth * scaleFactor;
+    // Fit lebar A4 (minus margin), tanpa center berlebihan
+    const imgWidth = pageWidth - marginX * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    // Biar gambarnya ke tengah, bukan nempel kiri
-    const x = (pageWidth - imgWidth) / 2;
-    let y = margin;
-
+    let y = marginY;
     let heightLeft = imgHeight;
 
     // Halaman pertama
-    pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
-    heightLeft -= pageHeight - margin * 2;
+    pdf.addImage(imgData, "PNG", marginX, y, imgWidth, imgHeight);
+    heightLeft -= pageHeight - marginY * 2;
 
-    // Kalau konten panjang, split jadi multi-page
+    // Kalau konten lebih dari 1 halaman, potong vertikal
     while (heightLeft > 0) {
       pdf.addPage();
-      y = margin - (imgHeight - heightLeft);
-      pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
-      heightLeft -= pageHeight - margin * 2;
+      y = marginY - (imgHeight - heightLeft);
+      pdf.addImage(imgData, "PNG", marginX, y, imgWidth, imgHeight);
+      heightLeft -= pageHeight - marginY * 2;
     }
 
     pdf.save(filename);
   } catch (err) {
     console.error("PDF export failed", err);
-    alert(
-      "Gagal membuat PDF. Detail: " + (err?.message || err)
-    );
+    alert("Gagal membuat PDF. Detail: " + (err?.message || err));
   }
 }
-
 
 /*********************************
  * Previews
