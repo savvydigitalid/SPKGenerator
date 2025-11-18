@@ -270,50 +270,42 @@ async function downloadDivAsPDF(div, filename) {
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    // Render elemen SPK jadi satu canvas panjang
-    const width = div.scrollWidth;
-    const height = div.scrollHeight;
+    // SCALE DIPERKECIL (1.2 ATAU 1.0)
+    const scaleValue = 1.2;
 
     const mainCanvas = await html2canvas(div, {
-      scale: 2,
+      scale: scaleValue,    // sebelumnya 2 → SEKARANG 1.2
       useCORS: true,
-      backgroundColor: "#ffffff",
-      width,
-      height,
-      windowWidth: width,
+      backgroundColor: "#ffffff"
     });
 
     const pdf = new jsPDF("p", "pt", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();    // ~595 pt
-    const pageHeight = pdf.internal.pageSize.getHeight();  // ~842 pt
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
 
-    const marginX = 55;   // kiri-kanan
-    const marginY = 55;   // atas-bawah
+    const marginX = 55;
+    const marginY = 55;
 
-    // Konten di PDF (tanpa margin). Sedikit dikurangi lagi supaya
-    // bagian bawah tidak kepotong.
     const contentWidthPt = pageWidth - marginX * 2;
-    const contentHeightPt = pageHeight - marginY * 2 - 10; // buffer 10pt
+    const contentHeightPt = pageHeight - marginY * 2 - 10;
 
-    // Skala: 1 px di canvas = ? pt di PDF
-    const scale = Math.min(contentWidthPt / mainCanvas.width, 1);
-
-    // Tinggi konten per halaman dalam satuan px canvas
+    const scale = Math.min(contentWidthPt / mainCanvas.width, 1); 
     const pageHeightPx = contentHeightPt / scale;
-
     const totalHeightPx = mainCanvas.height;
+
     let currentY = 0;
     let pageIndex = 0;
 
     while (currentY < totalHeightPx) {
       const sliceHeightPx = Math.min(pageHeightPx, totalHeightPx - currentY);
 
+      // potong canvas per halaman
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = mainCanvas.width;
       pageCanvas.height = sliceHeightPx;
-      const pageCtx = pageCanvas.getContext("2d");
+      const ctx = pageCanvas.getContext("2d");
 
-      pageCtx.drawImage(
+      ctx.drawImage(
         mainCanvas,
         0,
         currentY,
@@ -325,7 +317,8 @@ async function downloadDivAsPDF(div, filename) {
         sliceHeightPx
       );
 
-      const imgData = pageCanvas.toDataURL("image/png");
+      // ↓↓↓ PENTING: PAKAI JPEG + compress quality
+      const imgData = pageCanvas.toDataURL("image/jpeg", 0.7);
       const imgWidthPt = contentWidthPt;
       const imgHeightPt = sliceHeightPx * scale;
 
@@ -333,23 +326,16 @@ async function downloadDivAsPDF(div, filename) {
         pdf.addPage();
       }
 
-      pdf.addImage(
-        imgData,
-        "PNG",
-        marginX,
-        marginY,
-        imgWidthPt,
-        imgHeightPt
-      );
+      pdf.addImage(imgData, "JPEG", marginX, marginY, imgWidthPt, imgHeightPt);
 
       currentY += sliceHeightPx;
-      pageIndex += 1;
+      pageIndex++;
     }
 
     pdf.save(filename);
   } catch (err) {
     console.error("PDF export failed", err);
-    alert("Gagal membuat PDF. Detail: " + (err?.message || err));
+    alert("Gagal membuat PDF. Error: " + (err?.message || err));
   }
 }
 
