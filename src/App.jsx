@@ -275,7 +275,7 @@ async function downloadDivAsPDF(div, filename) {
     const height = div.scrollHeight;
 
     const mainCanvas = await html2canvas(div, {
-      scale: 2,              // tajam tapi masih ringan
+      scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
       width,
@@ -288,14 +288,15 @@ async function downloadDivAsPDF(div, filename) {
     const pageHeight = pdf.internal.pageSize.getHeight();  // ~842 pt
 
     const marginX = 55;   // kiri-kanan
-    const marginY = 55;   // atas-bawah (dibesarin biar cantik)
+    const marginY = 55;   // atas-bawah
 
-    // Konten di PDF (tanpa margin)
+    // Konten di PDF (tanpa margin). Sedikit dikurangi lagi supaya
+    // bagian bawah tidak kepotong.
     const contentWidthPt = pageWidth - marginX * 2;
-    const contentHeightPt = pageHeight - marginY * 2;
+    const contentHeightPt = pageHeight - marginY * 2 - 10; // buffer 10pt
 
     // Skala: 1 px di canvas = ? pt di PDF
-    const scale = contentWidthPt / mainCanvas.width;
+    const scale = Math.min(contentWidthPt / mainCanvas.width, 1);
 
     // Tinggi konten per halaman dalam satuan px canvas
     const pageHeightPx = contentHeightPt / scale;
@@ -304,18 +305,14 @@ async function downloadDivAsPDF(div, filename) {
     let currentY = 0;
     let pageIndex = 0;
 
-    const ctxSrc = mainCanvas.getContext("2d");
-
     while (currentY < totalHeightPx) {
       const sliceHeightPx = Math.min(pageHeightPx, totalHeightPx - currentY);
 
-      // Canvas sementara untuk potongan halaman ini
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = mainCanvas.width;
       pageCanvas.height = sliceHeightPx;
       const pageCtx = pageCanvas.getContext("2d");
 
-      // Copy bagian yang relevan dari canvas utama
       pageCtx.drawImage(
         mainCanvas,
         0,
@@ -336,7 +333,6 @@ async function downloadDivAsPDF(div, filename) {
         pdf.addPage();
       }
 
-      // Tempel di posisi yang sama di tiap halaman
       pdf.addImage(
         imgData,
         "PNG",
