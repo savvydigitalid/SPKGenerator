@@ -258,7 +258,7 @@ function Toggle({ checked, onChange }) {
 }
 
 /*********************************
- * PDF Export (solid + fallback)
+ * PDF Export (for Invoice & tests)
  *********************************/
 async function downloadDivAsPDF(div, filename) {
   if (!div) {
@@ -270,9 +270,9 @@ async function downloadDivAsPDF(div, filename) {
     const html2pdf = (await import("html2pdf.js")).default;
 
     const opt = {
-      margin: [55, 55, 55, 55], // atas, kiri, bawah, kanan (pt, sama seperti jsPDF)
+      margin: [55, 55, 55, 55], // atas, kiri, bawah, kanan (pt)
       filename,
-      image: { type: "jpeg", quality: 0.8 }, // kecil tapi tetap tajam
+      image: { type: "jpeg", quality: 0.8 },
       html2canvas: {
         scale: 2,
         useCORS: true,
@@ -284,7 +284,7 @@ async function downloadDivAsPDF(div, filename) {
         orientation: "portrait",
       },
       pagebreak: {
-        mode: ["css", "legacy"], // lebih rapi, respect CSS
+        mode: ["css", "legacy"],
       },
     };
 
@@ -294,18 +294,26 @@ async function downloadDivAsPDF(div, filename) {
     alert("Gagal membuat PDF. Detail: " + (err?.message || err));
   }
 }
+
+/*********************************
+ * PDF Export khusus SPK (teks jsPDF, anti-glitch)
+ *********************************/
 async function generateSpkPdf(form, amounts) {
   const { jsPDF } = await import("jspdf");
 
   const doc = new jsPDF("p", "pt", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+
   const marginX = 55;
   const marginY = 55;
   const usableWidth = pageWidth - marginX * 2;
+
   const lineGap = 14;
+  const boxLineHeight = 13;
 
   let y = marginY;
+  const bottomLimit = pageHeight - marginY - 20; // buffer ekstra biar gak kepotong
 
   const addTextBlock = (text, options = {}) => {
     const {
@@ -319,19 +327,21 @@ async function generateSpkPdf(form, amounts) {
     doc.setFontSize(size);
 
     const lines = doc.splitTextToSize(text, usableWidth);
+
     lines.forEach((line) => {
-      if (y + lineHeight > pageHeight - marginY) {
+      if (y + lineHeight > bottomLimit) {
         doc.addPage();
         y = marginY;
       }
       doc.text(line, marginX, y, { align });
       y += lineHeight;
     });
+
     y += 4;
   };
 
   const addSectionTitle = (title) => {
-    if (y + lineGap > pageHeight - marginY) {
+    if (y + lineGap > bottomLimit) {
       doc.addPage();
       y = marginY;
     }
@@ -343,18 +353,18 @@ async function generateSpkPdf(form, amounts) {
 
   const addBox = (lines) => {
     const boxPadding = 8;
-    const boxLineHeight = 13;
     const innerWidth = usableWidth - boxPadding * 2;
 
-    // hitung tinggi box
-    const allLines = [];
+    // hitung tinggi isi box
+    let allLines = [];
     lines.forEach((l) => {
       const pieces = doc.splitTextToSize(l, innerWidth);
-      allLines.push(...pieces);
+      allLines = allLines.concat(pieces);
     });
+
     const boxHeight = allLines.length * boxLineHeight + boxPadding * 2;
 
-    if (y + boxHeight > pageHeight - marginY) {
+    if (y + boxHeight > bottomLimit) {
       doc.addPage();
       y = marginY;
     }
@@ -377,6 +387,21 @@ async function generateSpkPdf(form, amounts) {
     doc.setFontSize(10.5);
 
     allLines.forEach((line) => {
+      if (innerY > bottomLimit) {
+        // kalau isi box terlalu panjang (jarang), pindah halaman
+        doc.addPage();
+        y = marginY;
+        innerY = y + boxPadding + boxLineHeight - 3;
+        doc.roundedRect(
+          marginX,
+          y,
+          usableWidth,
+          boxHeight,
+          4,
+          4,
+          "S"
+        );
+      }
       doc.text(line, marginX + boxPadding, innerY);
       innerY += boxLineHeight;
     });
@@ -422,7 +447,7 @@ async function generateSpkPdf(form, amounts) {
     `David Jr. M, selaku Direktur Savvy Digital beralamat di ${form.companyAddress}, mewakili klien dalam kampanye ${form.campaignName || "-"}, selanjutnya disebut PIHAK PERTAMA; dengan:`
   );
 
-  // Data KOL (box)
+  // Data KOL
   addBox([
     `Nama: ${form.kolName || "-"}`,
     `Alamat: ${form.kolAddress || "-"}`,
@@ -508,7 +533,7 @@ async function generateSpkPdf(form, amounts) {
   );
 
   // Tanda tangan
-  if (y + 80 > pageHeight - marginY) {
+  if (y + 80 > bottomLimit) {
     doc.addPage();
     y = marginY;
   }
@@ -516,7 +541,7 @@ async function generateSpkPdf(form, amounts) {
   const dateStr = issueDate.toLocaleDateString("id-ID");
   addTextBlock(`Jakarta, ${dateStr}`);
 
-  if (y + 80 > pageHeight - marginY) {
+  if (y + 80 > bottomLimit) {
     doc.addPage();
     y = marginY;
   }
@@ -526,6 +551,11 @@ async function generateSpkPdf(form, amounts) {
   const leftX = marginX;
   const rightX = marginX + usableWidth / 2 + 40;
 
+  if (y + 60 > bottomLimit) {
+    doc.addPage();
+    y = marginY;
+  }
+
   doc.text("Savvy Digital – PIHAK PERTAMA", leftX, y);
   doc.text("PIHAK KEDUA", rightX, y);
   y += 60;
@@ -534,8 +564,7 @@ async function generateSpkPdf(form, amounts) {
   doc.text("David Jr. M", leftX, y);
   doc.text(form.kolName || "(Nama KOL)", rightX, y);
 
-  // Save
-  const filenameSafe = filename || `SPK_${form.kolName || "KOL"}.pdf`;
+  const filenameSafe = `SPK_${form.kolName || "KOL"}_${form.campaignName || "Campaign"}.pdf`;
   doc.save(filenameSafe);
 }
 
@@ -745,7 +774,6 @@ function SPKPreview({ form, amounts }) {
   );
 }
 
-
 function InvoicePreview({ form, amounts }) {
   const invSeq = useMemo(
     () =>
@@ -929,11 +957,10 @@ export default function App() {
     setExporting(true);
     try {
       if (which === "spk") {
-        await downloadDivAsPDF(
-          spkRef.current,
-          `SPK_${form.kolName || "KOL"}_${form.campaignName || "Campaign"}.pdf`
-        );
+        // SPK pakai jsPDF teks (anti-glitch)
+        await generateSpkPdf(form, amounts);
       } else if (which === "invoice") {
+        // Invoice pakai html2pdf dari DOM
         await downloadDivAsPDF(
           invRef.current,
           `INVOICE_${form.kolName || "KOL"}_${form.campaignName || "Campaign"}.pdf`
@@ -1035,383 +1062,4 @@ export default function App() {
                 <Label>No. KTP *</Label>
                 <Input
                   value={form.kolKTP}
-                  onChange={(e) => setField("kolKTP", e.target.value)}
-                  placeholder="16 digit"
-                />
-                <ErrorText>{errors.kolKTP}</ErrorText>
-              </div>
-              <div>
-                <Label>No. NPWP (opsional)</Label>
-                <Input
-                  value={form.kolNPWP}
-                  onChange={(e) => setField("kolNPWP", e.target.value)}
-                  placeholder="NPWP"
-                />
-                <ErrorText>{errors.kolNPWP}</ErrorText>
-              </div>
-              <div>
-                <Label>PKP?</Label>
-                <div className="mt-1">
-                  <Toggle
-                    checked={form.kolPKP}
-                    onChange={(v) => setField("kolPKP", v)}
-                  />
-                </div>
-              </div>
-              <div />
-              <div>
-                <Label>Bank</Label>
-                <Input
-                  value={form.kolBankName}
-                  onChange={(e) => setField("kolBankName", e.target.value)}
-                  placeholder="BCA/BNI/BRI"
-                />
-              </div>
-              <div>
-                <Label>No. Rekening</Label>
-                <Input
-                  value={form.kolBankAcc}
-                  onChange={(e) => setField("kolBankAcc", e.target.value)}
-                  placeholder="1234567890"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Atas Nama</Label>
-                <Input
-                  value={form.kolBankHolder}
-                  onChange={(e) => setField("kolBankHolder", e.target.value)}
-                  placeholder="Nama pemilik rekening"
-                />
-              </div>
-            </div>
-          </Section>
-
-          <Section title="② Campaign & Scope">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <Label>Nama Campaign *</Label>
-                <Input
-                  value={form.campaignName}
-                  onChange={(e) => setField("campaignName", e.target.value)}
-                  placeholder="Cimory Q4"
-                />
-                <ErrorText>{errors.campaignName}</ErrorText>
-              </div>
-              <div>
-                <Label>Tanggal Perjanjian</Label>
-                <Input
-                  type="date"
-                  value={form.spkIssueDate}
-                  onChange={(e) => setField("spkIssueDate", e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Deskripsi Deliverable *</Label>
-                <TextArea
-                  rows={2}
-                  value={form.deliverableDesc}
-                  onChange={(e) =>
-                    setField("deliverableDesc", e.target.value)
-                  }
-                  placeholder="1 (satu) Video TikTok pada akun TikTok @username sesuai brief"
-                />
-                <ErrorText>{errors.deliverableDesc}</ErrorText>
-              </div>
-              <div>
-                <Label>Deadline Script</Label>
-                <Input
-                  type="date"
-                  value={form.scriptDeadline}
-                  onChange={(e) =>
-                    setField("scriptDeadline", e.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <Label>Deadline Upload</Label>
-                <Input
-                  type="date"
-                  value={form.uploadDeadline}
-                  onChange={(e) =>
-                    setField("uploadDeadline", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-          </Section>
-
-          <Section
-            title="③ Pembayaran & Pajak"
-            right={
-              <div className="text-xs text-slate-500">
-                Hitungan live di panel kanan
-              </div>
-            }
-          >
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <Label>Fee (angka acuan) *</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.feeInput}
-                  onChange={(e) =>
-                    setField("feeInput", Number(e.target.value))
-                  }
-                  placeholder="contoh 5000000"
-                />
-                <ErrorText>{errors.feeInput}</ErrorText>
-              </div>
-              <div>
-                <Label>Reimburse (opsional)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.reimburse}
-                  onChange={(e) =>
-                    setField("reimburse", Number(e.target.value))
-                  }
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <Label>Fee Basis</Label>
-                <Select
-                  value={form.feeBasis}
-                  onChange={(e) => setField("feeBasis", e.target.value)}
-                >
-                  <option value="gross">Gross (DPP sebelum pajak)</option>
-                  <option value="net">Net (target mendarat ke KOL)</option>
-                </Select>
-              </div>
-              <div>
-                <Label>Gross-Up?</Label>
-                <div className="mt-1">
-                  <Toggle
-                    checked={form.grossUp}
-                    onChange={(v) => setField("grossUp", v)}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Skema Pajak</Label>
-                <Select
-                  value={form.taxScheme}
-                  onChange={(e) =>
-                    setField("taxScheme", e.target.value)
-                  }
-                >
-                  <option value="UMKM_0_5">Final UMKM 0.5%</option>
-                  <option value="PPH23_2">PPh 23 Jasa 2%</option>
-                  <option value="PPH21_custom">PPh 21 (custom)</option>
-                  <option value="NONE">Tanpa PPh</option>
-                </Select>
-              </div>
-              {form.taxScheme === "PPH21_custom" && (
-                <div>
-                  <Label>Tarif PPh21 (0.5% - 50%)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={form.pph21Rate * 100}
-                    onChange={(e) =>
-                      setField("pph21Rate", Number(e.target.value) / 100)
-                    }
-                  />
-                  <ErrorText>{errors.pph21Rate}</ErrorText>
-                </div>
-              )}
-              <div>
-                <Label>Term Pembayaran</Label>
-                <Select
-                  value={form.paymentTerm}
-                  onChange={(e) =>
-                    setField("paymentTerm", e.target.value)
-                  }
-                >
-                  <option value="full">Full payment</option>
-                  <option value="dp50">DP 50% + pelunasan</option>
-                </Select>
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-slate-500">
-              <p>
-                Catatan: Jika <b>PKP</b> aktif pada KOL, PPN 11% akan
-                terhitung otomatis.
-              </p>
-              <p>
-                Mode <b>Gross-Up</b>: fee dianggap target{" "}
-                <i>net mendarat</i> (setelah PPh & +PPN bila PKP).
-              </p>
-            </div>
-          </Section>
-        </div>
-
-        {/* Right: Live Preview */}
-        <div className="space-y-4">
-          <Section title="Live Breakdown & Checks">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-slate-100 rounded-xl p-3">
-                <p>DPP (Gross)</p>
-                <p className="text-lg font-semibold">
-                  {idr(amounts.gross)}
-                </p>
-              </div>
-              <div className="bg-slate-100 rounded-xl p-3">
-                <p>PPh ({fmt(deriveRates(form).pphRate * 100)}%)</p>
-                <p className="text-lg font-semibold">
-                  {idr(amounts.withholding)}
-                </p>
-              </div>
-              <div className="bg-slate-100 rounded-xl p-3">
-                <p>PPN ({fmt(deriveRates(form).vatRate * 100)}%)</p>
-                <p className="text-lg font-semibold">
-                  {idr(amounts.vatAmount)}
-                </p>
-              </div>
-              <div className="bg-slate-100 rounded-xl p-3">
-                <p>Net to KOL</p>
-                <p className="text-lg font-semibold">
-                  {idr(amounts.netToKOL)}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 space-y-1 text-xs">
-              {form.taxScheme === "PPH23_2" && !form.kolNPWP && (
-                <p className="text-amber-700 bg-amber-100 border border-amber-200 rounded px-2 py-1">
-                  Disarankan isi NPWP untuk PPh23.
-                </p>
-              )}
-              {form.grossUp && form.feeBasis !== "net" && (
-                <p className="text-amber-700 bg-amber-100 border border-amber-200 rounded px-2 py-1">
-                  Gross-up aktif, sebaiknya Fee Basis = Net agar target
-                  tepat.
-                </p>
-              )}
-            </div>
-          </Section>
-
-          <Section
-            title="Preview SPK"
-            right={
-              <button
-  onClick={() => generateSpkPdf(form, amounts)}
->
-  Download SPK
-</button>
-
-                  )
-                }
-                disabled={exporting}
-                className="text-xs bg-yellow-400 px-3 py-1.5 rounded-xl font-semibold disabled:opacity-60"
-              >
-                Download
-              </button>
-            }
-          >
-            <div ref={spkRef} className="bg-white border rounded-xl">
-              <SPKPreview form={form} amounts={amounts} />
-            </div>
-          </Section>
-
-          <Section
-            title="Preview Invoice"
-            right={
-             <button
-  onClick={() => generateSpkPdf(form, amounts)}
->
-  Download SPK
-</button>
-
-                  )
-                }
-                disabled={exporting}
-                className="text-xs bg-yellow-400 px-3 py-1.5 rounded-xl font-semibold disabled:opacity-60"
-              >
-                Download
-              </button>
-            }
-          >
-            <div ref={invRef} className="bg-white border rounded-xl">
-              <InvoicePreview form={form} amounts={amounts} />
-            </div>
-          </Section>
-
-          <Section
-            title="Diagnostics & Tests"
-            right={
-              <div className="flex gap-2 text-xs">
-                <button
-                  className="bg-slate-200 rounded-lg px-2 py-1"
-                  onClick={() =>
-                    downloadDivAsPDF(
-                      diagSimpleRef.current,
-                      "TEST_simple.pdf"
-                    )
-                  }
-                >
-                  Run Simple
-                </button>
-                <button
-                  className="bg-slate-200 rounded-lg px-2 py-1"
-                  onClick={() =>
-                    downloadDivAsPDF(
-                      diagLongRef.current,
-                      "TEST_long.pdf"
-                    )
-                  }
-                >
-                  Run Long
-                </button>
-                <button
-                  className="bg-slate-200 rounded-lg px-2 py-1"
-                  onClick={() => {
-                    const a = nextSequence("__test_seq__");
-                    const b = nextSequence("__test_seq__");
-                    alert(
-                      `Storage OK: seq increments ${a} -> ${b} (LS:${
-                        HAS_LS ? "on" : "off"
-                      })`
-                    );
-                  }}
-                >
-                  Test Storage
-                </button>
-              </div>
-            }
-          >
-            <div className="space-y-3 text-sm">
-              <div
-                ref={diagSimpleRef}
-                className="bg-white border rounded-xl p-4"
-              >
-                <h4 className="font-semibold mb-2">Simple Test</h4>
-                <p>Halo! Ini test sederhana 1 halaman untuk cek export.</p>
-              </div>
-              <div
-                ref={diagLongRef}
-                className="bg-white border rounded-xl p-4"
-              >
-                <h4 className="font-semibold mb-2">
-                  Long Test (Multi-page)
-                </h4>
-                <ul className="list-disc ml-6">
-                  {Array.from({ length: 120 }).map((_, i) => (
-                    <li key={i}>
-                      Baris ke-{i + 1}: Lorem ipsum dolor sit amet,
-                      consectetur adipiscing elit.
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </Section>
-        </div>
-      </main>
-
-      <footer className="text-center text-xs text-slate-500 py-6">
-        Savvy OS • SPK &amp; Invoice Generator (MVP)
-      </footer>
-    </div>
-  );
-}
+                  onChange={(e) => setField("kolKTP", e
