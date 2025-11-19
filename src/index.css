@@ -84,3 +84,12 @@
 .spk-print .spk-signature-name {
   font-weight: 600;
 }
+/* Bantu html2pdf biar tidak motong tengah-tengah box */
+.spk-print {
+  page-break-inside: avoid;
+}
+
+.spk-print .spk-section-title,
+.spk-print .spk-box {
+  page-break-inside: avoid;
+}
