@@ -1071,7 +1071,11 @@ export default function App() {
                 <ErrorText>{errors.kolAddress}</ErrorText>
               </div>
               <div>
-                <Label>No. KTP *</Label>
-                <Input
-                  value={form.kolKTP}
-                  onChange={(e) => setField("kolKTP", e
+  <Label>No. KTP *</Label>
+  <Input
+    value={form.kolKTP}
+    onChange={(e) => setField("kolKTP", e.target.value)}
+    placeholder="Nomor KTP"
+  />
+  <ErrorText>{errors.kolKTP}</ErrorText>
+</div>
