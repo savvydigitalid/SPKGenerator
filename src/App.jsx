@@ -267,31 +267,28 @@ async function downloadDivAsPDF(div, filename) {
   }
 
   try {
-    const { jsPDF } = await import("jspdf");
-    const html2canvas = (await import("html2canvas")).default;
+    const html2pdf = (await import("html2pdf.js")).default;
 
-    // jsPDF.html butuh html2canvas di global
-    if (typeof globalThis !== "undefined") {
-      // @ts-ignore
-      globalThis.html2canvas = html2canvas;
-    }
-
-    const pdf = new jsPDF("p", "pt", "a4");
-
-    await pdf.html(div, {
-      // margin: atas, kiri, bawah, kanan
-      margin: [55, 55, 55, 55],
-      autoPaging: "text",
-      x: 0,
-      y: 0,
+    const opt = {
+      margin: [55, 55, 55, 55], // atas, kiri, bawah, kanan (pt, sama seperti jsPDF)
+      filename,
+      image: { type: "jpeg", quality: 0.8 }, // kecil tapi tetap tajam
       html2canvas: {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
       },
-    });
+      jsPDF: {
+        unit: "pt",
+        format: "a4",
+        orientation: "portrait",
+      },
+      pagebreak: {
+        mode: ["css", "legacy"], // lebih rapi, respect CSS
+      },
+    };
 
-    pdf.save(filename);
+    await html2pdf().set(opt).from(div).save();
   } catch (err) {
     console.error("PDF export failed", err);
     alert("Gagal membuat PDF. Detail: " + (err?.message || err));
