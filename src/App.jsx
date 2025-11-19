@@ -315,30 +315,42 @@ async function generateSpkPdf(form, amounts) {
   let y = marginY;
   const bottomLimit = pageHeight - marginY - 20; // buffer ekstra biar gak kepotong
 
-  const addTextBlock = (text, options = {}) => {
-    const {
-      bold = false,
-      align = "left",
-      size = 11,
-      lineHeight = lineGap,
-    } = options;
+ const addTextBlock = (text, options = {}) => {
+  const {
+    bold = false,
+    align = "left",
+    size = 11,
+    lineHeight = lineGap,
+  } = options;
 
-    doc.setFont("Helvetica", bold ? "bold" : "normal");
-    doc.setFontSize(size);
+  doc.setFont("Helvetica", bold ? "bold" : "normal");
+  doc.setFontSize(size);
 
-    const lines = doc.splitTextToSize(text, usableWidth);
+  const lines = doc.splitTextToSize(text, usableWidth);
 
-    lines.forEach((line) => {
-      if (y + lineHeight > bottomLimit) {
-        doc.addPage();
-        y = marginY;
-      }
-      doc.text(line, marginX, y, { align });
-      y += lineHeight;
-    });
+  // --- Widow/orphan control ---
+  // Hitung kira-kira berapa baris masih muat di halaman ini
+  const remainingLinesFit = Math.floor((bottomLimit - y) / lineHeight);
 
-    y += 4;
-  };
+  // Kalau paragraf punya >1 baris,
+  // tapi space tersisa cuma muat 1 baris (atau kurang),
+  // geser seluruh paragraf ke halaman baru
+  if (lines.length > 1 && remainingLinesFit > 0 && remainingLinesFit <= 1) {
+    doc.addPage();
+    y = marginY;
+  }
+
+  lines.forEach((line) => {
+    if (y + lineHeight > bottomLimit) {
+      doc.addPage();
+      y = marginY;
+    }
+    doc.text(line, marginX, y, { align });
+    y += lineHeight;
+  });
+
+  y += 4;
+};
 
   const addSectionTitle = (title) => {
     if (y + lineGap > bottomLimit) {
