@@ -294,6 +294,250 @@ async function downloadDivAsPDF(div, filename) {
     alert("Gagal membuat PDF. Detail: " + (err?.message || err));
   }
 }
+async function generateSpkPdf(form, amounts) {
+  const { jsPDF } = await import("jspdf");
+
+  const doc = new jsPDF("p", "pt", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 55;
+  const marginY = 55;
+  const usableWidth = pageWidth - marginX * 2;
+  const lineGap = 14;
+
+  let y = marginY;
+
+  const addTextBlock = (text, options = {}) => {
+    const {
+      bold = false,
+      align = "left",
+      size = 11,
+      lineHeight = lineGap,
+    } = options;
+
+    doc.setFont("Helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+
+    const lines = doc.splitTextToSize(text, usableWidth);
+    lines.forEach((line) => {
+      if (y + lineHeight > pageHeight - marginY) {
+        doc.addPage();
+        y = marginY;
+      }
+      doc.text(line, marginX, y, { align });
+      y += lineHeight;
+    });
+    y += 4;
+  };
+
+  const addSectionTitle = (title) => {
+    if (y + lineGap > pageHeight - marginY) {
+      doc.addPage();
+      y = marginY;
+    }
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(title.toUpperCase(), marginX, y);
+    y += lineGap;
+  };
+
+  const addBox = (lines) => {
+    const boxPadding = 8;
+    const boxLineHeight = 13;
+    const innerWidth = usableWidth - boxPadding * 2;
+
+    // hitung tinggi box
+    const allLines = [];
+    lines.forEach((l) => {
+      const pieces = doc.splitTextToSize(l, innerWidth);
+      allLines.push(...pieces);
+    });
+    const boxHeight = allLines.length * boxLineHeight + boxPadding * 2;
+
+    if (y + boxHeight > pageHeight - marginY) {
+      doc.addPage();
+      y = marginY;
+    }
+
+    // gambar kotak
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(
+      marginX,
+      y,
+      usableWidth,
+      boxHeight,
+      4,
+      4,
+      "S"
+    );
+
+    let innerY = y + boxPadding + boxLineHeight - 3;
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(10.5);
+
+    allLines.forEach((line) => {
+      doc.text(line, marginX + boxPadding, innerY);
+      innerY += boxLineHeight;
+    });
+
+    y += boxHeight + 8;
+  };
+
+  // ====== ISI SPK ======
+
+  const issueDate = new Date(form.spkIssueDate);
+  const issueDateStr = issueDate.toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  // Judul
+  doc.setFont("Helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("SURAT PERJANJIAN KERJASAMA", pageWidth / 2, y, {
+    align: "center",
+  });
+  y += lineGap * 1.8;
+
+  doc.setFontSize(11);
+  doc.text('"SOCIAL MEDIA ENDORSER/INFLUENCER"', pageWidth / 2, y, {
+    align: "center",
+  });
+  y += lineGap * 1.4;
+
+  doc.text(`NO: ${form.spkNumber || "-"}`, pageWidth / 2, y, {
+    align: "center",
+  });
+  y += lineGap * 2;
+
+  // Pembukaan
+  addTextBlock(
+    `Pada hari ${issueDateStr} bertempat di Jakarta Selatan dibuat dan ditandatangani Surat Perjanjian Kerjasama ("Perjanjian"), oleh dan antara:`
+  );
+
+  addTextBlock(
+    `David Jr. M, selaku Direktur Savvy Digital beralamat di ${form.companyAddress}, mewakili klien dalam kampanye ${form.campaignName || "-"}, selanjutnya disebut PIHAK PERTAMA; dengan:`
+  );
+
+  // Data KOL (box)
+  addBox([
+    `Nama: ${form.kolName || "-"}`,
+    `Alamat: ${form.kolAddress || "-"}`,
+    `No. KTP: ${form.kolKTP || "-"}`,
+    `No. NPWP: ${form.kolNPWP || "-"}`,
+  ]);
+
+  addTextBlock(
+    `PIHAK PERTAMA dan PIHAK KEDUA secara bersama-sama disebut sebagai "Para Pihak", dan secara sendiri-sendiri disebut sebagai "Pihak".`
+  );
+
+  // Pasal 1
+  addSectionTitle("Pasal 1 - Ruang Lingkup Pekerjaan");
+  addTextBlock(
+    `PIHAK KEDUA akan melakukan pekerjaan sebagai berikut:`
+  );
+  addTextBlock(
+    `• ${form.deliverableDesc || "1 (satu) konten sesuai brief PIHAK PERTAMA."}`
+  );
+  addTextBlock(
+    `• Mengirimkan insight / hasil posting maksimal 7 (tujuh) hari kalender setelah konten tayang.`
+  );
+
+  addTextBlock(
+    `Script / storyline diserahkan paling lambat H+3 (tiga hari kalender) setelah tanggal perjanjian ini. Draft final video diserahkan paling lambat tanggal ${issueDate.toLocaleDateString(
+      "id-ID"
+    )}. Unggah konten yang telah disetujui PIHAK PERTAMA paling lambat tanggal ${new Date(
+      form.uploadDeadline
+    ).toLocaleDateString(
+      "id-ID"
+    )} atau pada tanggal lain yang disepakati PIHAK PERTAMA.`
+  );
+
+  // Pasal 2
+  addSectionTitle("Pasal 2 - Pembayaran");
+  addTextBlock(
+    `PIHAK KEDUA wajib mengirim invoice / kwitansi bermaterai (digital / cetak) kepada PIHAK PERTAMA setelah kewajiban pada Pasal 1 terpenuhi.`
+  );
+  addTextBlock(
+    `Pembayaran oleh PIHAK PERTAMA dilakukan selambat-lambatnya H+15 (lima belas hari kalender) setelah konten diunggah dan seluruh dokumen pendukung diterima dengan lengkap.`
+  );
+
+  const schemeText = form.grossUp
+    ? "dengan skema gross-up (target net KOL)."
+    : "dengan skema non gross-up.";
+  addTextBlock(
+    `Remunerasi disepakati sebesar ${idr(
+      form.feeInput
+    )} ${schemeText} Potongan dan penambahan pajak mengikuti profil pajak sebagai berikut:`
+  );
+
+  addBox([
+    `DPP (Gross): ${idr(amounts.gross)}`,
+    `PPh: ${idr(amounts.withholding)}`,
+    `PPN: ${idr(amounts.vatAmount)}`,
+    `Net ke KOL: ${idr(amounts.netToKOL)}`,
+  ]);
+
+  addTextBlock(`Pembayaran akan ditransfer ke rekening berikut:`);
+
+  addBox([
+    `Bank: ${form.kolBankName || "-"}`,
+    `No. Rekening: ${form.kolBankAcc || "-"}`,
+    `a.n. ${form.kolBankHolder || form.kolName || "-"}`,
+  ]);
+
+  // Pasal 5
+  addSectionTitle("Pasal 5 - Pernyataan dan Jaminan");
+  addTextBlock(
+    `PIHAK KEDUA menyatakan akan bertindak secara profesional, menjaga nama baik PIHAK PERTAMA dan klien, serta tidak melakukan tindakan yang dapat merugikan reputasi Para Pihak. PIHAK KEDUA bertanggung jawab penuh atas seluruh konten, pernyataan, dan tindakan yang dilakukan di akun media sosial miliknya sepanjang terkait dengan pelaksanaan Perjanjian ini.`
+  );
+  addTextBlock(
+    `PIHAK KEDUA tidak akan membocorkan rahasia dagang, data internal, maupun informasi lain milik PIHAK PERTAMA dan/atau klien tanpa persetujuan tertulis terlebih dahulu dari PIHAK PERTAMA. Apabila PIHAK KEDUA gagal memenuhi kewajiban pada Pasal 1, maka PIHAK KEDUA dinyatakan wanprestasi dan wajib mengembalikan remunerasi yang telah diterima (apabila ada) kepada PIHAK PERTAMA.`
+  );
+
+  // Pasal 6
+  addSectionTitle("Pasal 6 - Penutup");
+  addTextBlock(
+    `Segala perselisihan yang timbul dari Perjanjian ini akan diselesaikan dahulu secara musyawarah untuk mufakat. Apabila tidak tercapai mufakat, Para Pihak sepakat untuk memilih domisili hukum tetap pada Pengadilan di wilayah Jakarta Selatan.`
+  );
+  addTextBlock(
+    `Perubahan atas Perjanjian ini hanya dapat dilakukan secara tertulis dan ditandatangani oleh Para Pihak, dan menjadi bagian yang tidak terpisahkan dari Perjanjian ini.`
+  );
+
+  // Tanda tangan
+  if (y + 80 > pageHeight - marginY) {
+    doc.addPage();
+    y = marginY;
+  }
+
+  const dateStr = issueDate.toLocaleDateString("id-ID");
+  addTextBlock(`Jakarta, ${dateStr}`);
+
+  if (y + 80 > pageHeight - marginY) {
+    doc.addPage();
+    y = marginY;
+  }
+
+  doc.setFont("Helvetica", "normal");
+  doc.setFontSize(11);
+  const leftX = marginX;
+  const rightX = marginX + usableWidth / 2 + 40;
+
+  doc.text("Savvy Digital – PIHAK PERTAMA", leftX, y);
+  doc.text("PIHAK KEDUA", rightX, y);
+  y += 60;
+
+  doc.setFont("Helvetica", "bold");
+  doc.text("David Jr. M", leftX, y);
+  doc.text(form.kolName || "(Nama KOL)", rightX, y);
+
+  // Save
+  const filenameSafe = filename || `SPK_${form.kolName || "KOL"}.pdf`;
+  doc.save(filenameSafe);
+}
 
 /*********************************
  * Previews
@@ -1051,12 +1295,11 @@ export default function App() {
             title="Preview SPK"
             right={
               <button
-                onClick={() =>
-                  downloadDivAsPDF(
-                    spkRef.current,
-                    `SPK_${form.kolName || "KOL"}_${
-                      form.campaignName || "Campaign"
-                    }.pdf`
+  onClick={() => generateSpkPdf(form, amounts)}
+>
+  Download SPK
+</button>
+
                   )
                 }
                 disabled={exporting}
@@ -1074,13 +1317,12 @@ export default function App() {
           <Section
             title="Preview Invoice"
             right={
-              <button
-                onClick={() =>
-                  downloadDivAsPDF(
-                    invRef.current,
-                    `INVOICE_${form.kolName || "KOL"}_${
-                      form.campaignName || "Campaign"
-                    }.pdf`
+             <button
+  onClick={() => generateSpkPdf(form, amounts)}
+>
+  Download SPK
+</button>
+
                   )
                 }
                 disabled={exporting}
