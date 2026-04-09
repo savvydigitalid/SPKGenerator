@@ -1,76 +1,33 @@
 import React, { useMemo, useState } from "react";
+import savvyLogo from "./assets/savvy-logo.svg";
+import {
+  computeAmounts,
+  deriveRates,
+  idr,
+  makeSpkNumber,
+  parseISODateAsLocal,
+  todayISO,
+} from "./lib/spk";
 
-// ================= Helpers =================
-
-const idr = (n) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Math.round(Number(n || 0)));
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
-function computeAmounts({ feeInput, grossUp, pphRate, vatRate }) {
-  const r = Number(pphRate || 0);
-  const v = Number(vatRate || 0);
-
-  const res = {
-    gross: 0,
-    withholding: 0,
-    vatAmount: 0,
-    netToKOL: 0,
-  };
-
-  if (!feeInput || Number(feeInput) <= 0) return res;
-
-  if (!grossUp) {
-    // Fee input = DPP (gross) sebelum VAT
-    res.gross = Number(feeInput);
-    res.withholding = res.gross * r;
-    res.vatAmount = res.gross * v;
-    res.netToKOL = res.gross - res.withholding + res.vatAmount;
-    return res;
-  }
-
-  // Gross-up: feeInput = net ke KOL (setelah PPh & +PPN)
-  const netTarget = Number(feeInput);
-  const factor = 1 - r + v;
-  if (factor <= 0) {
-    res.gross = netTarget;
-    res.withholding = res.gross * r;
-    res.vatAmount = res.gross * v;
-    res.netToKOL = res.gross - res.withholding + res.vatAmount;
-    return res;
-  }
-
-  res.gross = netTarget / factor;
-  res.withholding = res.gross * r;
-  res.vatAmount = res.gross * v;
-  res.netToKOL = res.gross - res.withholding + res.vatAmount; // ≈ netTarget
-  return res;
-}
-
-function deriveRates(form) {
-  let pphRate = 0;
-  if (form.taxScheme === "UMKM_0_5") pphRate = 0.005;
-  else if (form.taxScheme === "PPH23_2") pphRate = 0.02;
-  else if (form.taxScheme === "PPH21_custom")
-    pphRate = Number(form.pph21Rate || 0);
-  else pphRate = 0;
-  const vatRate = form.kolPKP ? 0.11 : 0;
-  return { pphRate, vatRate };
-}
-
-// nomor dokumen simpel
-function makeSpkNumber(date, kolName, campaignName) {
-  const d = new Date(date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const cleanKol = (kolName || "KOL").replace(/\s+/g, "").slice(0, 10);
-  const cleanCamp = (campaignName || "CMP").replace(/\s+/g, "").slice(0, 10);
-  return `SPK/${yyyy}${mm}${dd}/${cleanKol}/${cleanCamp}`;
+async function loadImageDataUrl(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas 2D context unavailable"));
+        return;
+      }
+      ctx.drawImage(image, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror = () => reject(new Error("Failed to load logo image"));
+    image.src = src;
+  });
 }
 
 // ================= PDF SPK (jsPDF, anti kepotong) =================
@@ -83,7 +40,7 @@ async function generateSpkPdf(form, amounts) {
   const pageHeight = doc.internal.pageSize.getHeight();
 
   const marginX = 55;
-  const marginY = 55;
+  const marginY = 120;
   const usableWidth = pageWidth - marginX * 2;
 
   const lineGap = 14;
@@ -91,6 +48,35 @@ async function generateSpkPdf(form, amounts) {
 
   let y = marginY;
   const bottomLimit = pageHeight - marginY - 20; // buffer
+
+  let logoDataUrl = null;
+  try {
+    logoDataUrl = await loadImageDataUrl(savvyLogo);
+  } catch {
+    logoDataUrl = null;
+  }
+
+  const drawHeader = () => {
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", marginX, 36, 92, 46);
+    }
+
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(20, 20, 20);
+    doc.setFontSize(11);
+    doc.text("Savvy Digital", pageWidth - marginX, 50, { align: "right" });
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(
+      "Gedung Artha Graha, Jl. Jend. Sudirman Kav 52-53, Senayan, Jakarta",
+      pageWidth - marginX,
+      66,
+      { align: "right", maxWidth: 260 }
+    );
+    doc.setDrawColor(205);
+    doc.setLineWidth(1);
+    doc.line(marginX, 92, pageWidth - marginX, 92);
+  };
 
   const addTextBlock = (text, options = {}) => {
     const {
@@ -100,7 +86,7 @@ async function generateSpkPdf(form, amounts) {
       lineHeight = lineGap,
     } = options;
 
-    doc.setFont("Helvetica", bold ? "bold" : "normal");
+    doc.setFont("Times", bold ? "bold" : "normal");
     doc.setFontSize(size);
 
     const lines = doc.splitTextToSize(text, usableWidth);
@@ -110,12 +96,14 @@ async function generateSpkPdf(form, amounts) {
     const remainingLinesFit = Math.floor((bottomLimit - y) / lineHeight);
     if (lines.length > 1 && remainingLinesFit > 0 && remainingLinesFit <= 1) {
       doc.addPage();
+      drawHeader();
       y = marginY;
     }
 
     lines.forEach((line) => {
       if (y + lineHeight > bottomLimit) {
         doc.addPage();
+        drawHeader();
         y = marginY;
       }
       doc.text(line, marginX, y, { align });
@@ -128,56 +116,38 @@ async function generateSpkPdf(form, amounts) {
   const addSectionTitle = (title) => {
     if (y + lineGap > bottomLimit) {
       doc.addPage();
+      drawHeader();
       y = marginY;
     }
-    doc.setFont("Helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFont("Times", "bold");
+    doc.setFontSize(12);
     doc.text(title.toUpperCase(), marginX, y);
     y += lineGap;
   };
 
-  const addBox = (lines) => {
-    const boxPadding = 8;
-    const innerWidth = usableWidth - boxPadding * 2;
-
-    let allLines = [];
-    lines.forEach((l) => {
-      const pieces = doc.splitTextToSize(l, innerWidth);
-      allLines = allLines.concat(pieces);
-    });
-
-    const boxHeight = allLines.length * boxLineHeight + boxPadding * 2;
-
-    if (y + boxHeight > bottomLimit) {
-      doc.addPage();
-      y = marginY;
-    }
-
-    doc.setDrawColor(180);
-    doc.setLineWidth(0.8);
-    doc.roundedRect(marginX, y, usableWidth, boxHeight, 4, 4, "S");
-
-    let innerY = y + boxPadding + boxLineHeight - 3;
-    doc.setFont("Helvetica", "normal");
+  const addDetailLines = (lines) => {
+    const indentX = marginX + 10;
+    doc.setFont("Times", "normal");
     doc.setFontSize(10.5);
-
-    allLines.forEach((line) => {
-      if (innerY > bottomLimit) {
-        doc.addPage();
-        y = marginY;
-        innerY = y + boxPadding + boxLineHeight - 3;
-        doc.roundedRect(marginX, y, usableWidth, boxHeight, 4, 4, "S");
-      }
-      doc.text(line, marginX + boxPadding, innerY);
-      innerY += boxLineHeight;
+    lines.forEach((line) => {
+      const wrapped = doc.splitTextToSize(line, usableWidth - 20);
+      wrapped.forEach((wLine) => {
+        if (y + boxLineHeight > bottomLimit) {
+          doc.addPage();
+          drawHeader();
+          y = marginY;
+        }
+        doc.text(wLine, indentX, y);
+        y += boxLineHeight;
+      });
     });
-
-    y += boxHeight + 8;
+    y += 6;
   };
 
   // ====== ISI SPK ======
+  drawHeader();
 
-  const issueDate = new Date(form.spkIssueDate);
+  const issueDate = parseISODateAsLocal(form.spkIssueDate);
   const issueDateStr = issueDate.toLocaleDateString("id-ID", {
     weekday: "long",
     day: "2-digit",
@@ -191,9 +161,9 @@ async function generateSpkPdf(form, amounts) {
   );
 
   // Judul
-  doc.setFont("Helvetica", "bold");
+  doc.setFont("Times", "bold");
   doc.setFontSize(14);
-  doc.text("SURAT PERJANJIAN KERJASAMA", pageWidth / 2, y, {
+  doc.text("SURAT PERJANJIAN KERJA SAMA", pageWidth / 2, y, {
     align: "center",
   });
   y += lineGap * 1.8;
@@ -210,7 +180,7 @@ async function generateSpkPdf(form, amounts) {
   y += lineGap * 2;
 
   addTextBlock(
-    `Pada hari ${issueDateStr} bertempat di Jakarta Selatan dibuat dan ditandatangani Surat Perjanjian Kerjasama ("Perjanjian"), oleh dan antara:`
+    `Pada hari ${issueDateStr} bertempat di Jakarta Selatan dibuat dan ditandatangani Surat Perjanjian Kerja Sama ("Perjanjian"), oleh dan antara:`
   );
 
   addTextBlock(
@@ -218,7 +188,7 @@ async function generateSpkPdf(form, amounts) {
       "-"}, selanjutnya disebut PIHAK PERTAMA; dengan:`
   );
 
-  addBox([
+  addDetailLines([
     `Nama: ${form.kolName || "-"}`,
     `Alamat: ${form.kolAddress || "-"}`,
     `No. KTP: ${form.kolKTP || "-"}`,
@@ -244,7 +214,7 @@ async function generateSpkPdf(form, amounts) {
   addTextBlock(
     `Script / storyline diserahkan paling lambat H+3 (tiga hari kalender) setelah tanggal perjanjian ini. Draft final video diserahkan paling lambat tanggal ${issueDate.toLocaleDateString(
       "id-ID"
-    )}. Unggah konten yang telah disetujui PIHAK PERTAMA paling lambat tanggal ${new Date(
+    )}. Unggah konten yang telah disetujui PIHAK PERTAMA paling lambat tanggal ${parseISODateAsLocal(
       form.uploadDeadline
     ).toLocaleDateString(
       "id-ID"
@@ -270,7 +240,7 @@ async function generateSpkPdf(form, amounts) {
     )} ${schemeText} Potongan dan penambahan pajak mengikuti profil pajak sebagai berikut:`
   );
 
-  addBox([
+  addDetailLines([
     `DPP (Gross): ${idr(amounts.gross)}`,
     `PPh (${(pphRate * 100).toFixed(2)}%): ${idr(amounts.withholding)}`,
     `PPN (${(vatRate * 100).toFixed(2)}%): ${idr(amounts.vatAmount)}`,
@@ -279,14 +249,14 @@ async function generateSpkPdf(form, amounts) {
 
   addTextBlock(`Pembayaran akan ditransfer ke rekening berikut:`);
 
-  addBox([
+  addDetailLines([
     `Bank: ${form.kolBankName || "-"}`,
     `No. Rekening: ${form.kolBankAcc || "-"}`,
     `a.n. ${form.kolBankHolder || form.kolName || "-"}`,
   ]);
 
-  // PASAL 5
-  addSectionTitle("Pasal 5 - Pernyataan dan Jaminan");
+  // PASAL 3
+  addSectionTitle("Pasal 3 - Pernyataan dan Jaminan");
   addTextBlock(
     `PIHAK KEDUA menyatakan akan bertindak secara profesional, menjaga nama baik PIHAK PERTAMA dan klien, serta tidak melakukan tindakan yang dapat merugikan reputasi Para Pihak. PIHAK KEDUA bertanggung jawab penuh atas seluruh konten, pernyataan, dan tindakan yang dilakukan di akun media sosial miliknya sepanjang terkait dengan pelaksanaan Perjanjian ini.`
   );
@@ -294,8 +264,8 @@ async function generateSpkPdf(form, amounts) {
     `PIHAK KEDUA tidak akan membocorkan rahasia dagang, data internal, maupun informasi lain milik PIHAK PERTAMA dan/atau klien tanpa persetujuan tertulis terlebih dahulu dari PIHAK PERTAMA. Apabila PIHAK KEDUA gagal memenuhi kewajiban pada Pasal 1, maka PIHAK KEDUA dinyatakan wanprestasi dan wajib mengembalikan remunerasi yang telah diterima (apabila ada) kepada PIHAK PERTAMA.`
   );
 
-  // PASAL 6
-  addSectionTitle("Pasal 6 - Penutup");
+  // PASAL 4
+  addSectionTitle("Pasal 4 - Penutup");
   addTextBlock(
     `Segala perselisihan yang timbul dari Perjanjian ini akan diselesaikan terlebih dahulu secara musyawarah untuk mufakat. Apabila tidak tercapai mufakat, Para Pihak sepakat untuk memilih domisili hukum tetap pada Pengadilan di wilayah Jakarta Selatan.`
   );
@@ -306,6 +276,7 @@ async function generateSpkPdf(form, amounts) {
   // Tanda tangan
   if (y + 80 > bottomLimit) {
     doc.addPage();
+    drawHeader();
     y = marginY;
   }
 
@@ -314,10 +285,11 @@ async function generateSpkPdf(form, amounts) {
 
   if (y + 80 > bottomLimit) {
     doc.addPage();
+    drawHeader();
     y = marginY;
   }
 
-  doc.setFont("Helvetica", "normal");
+  doc.setFont("Times", "normal");
   doc.setFontSize(11);
 
   const leftX = marginX;
@@ -325,6 +297,7 @@ async function generateSpkPdf(form, amounts) {
 
   if (y + 60 > bottomLimit) {
     doc.addPage();
+    drawHeader();
     y = marginY;
   }
 
@@ -332,7 +305,7 @@ async function generateSpkPdf(form, amounts) {
   doc.text("PIHAK KEDUA", rightX, y);
   y += 60;
 
-  doc.setFont("Helvetica", "bold");
+  doc.setFont("Times", "bold");
   doc.text("David Jr. M", leftX, y);
   doc.text(form.kolName || "(Nama KOL)", rightX, y);
 
@@ -381,7 +354,7 @@ const ErrorText = ({ children }) =>
 // ================= PREVIEW SPK DI LAYAR =================
 
 function SpkPreviewCard({ form, amounts }) {
-  const issueDate = new Date(form.spkIssueDate);
+  const issueDate = parseISODateAsLocal(form.spkIssueDate);
   const spkNumber = makeSpkNumber(
     form.spkIssueDate,
     form.kolName,
@@ -391,7 +364,7 @@ function SpkPreviewCard({ form, amounts }) {
   return (
     <div className="bg-white rounded-2xl border shadow-sm p-6 text-sm leading-relaxed max-h-[80vh] overflow-auto">
       <h2 className="text-center font-bold text-lg">
-        SURAT PERJANJIAN KERJASAMA
+        SURAT PERJANJIAN KERJA SAMA
       </h2>
       <p className="text-center text-sm">
         “SOCIAL MEDIA ENDORSER/INFLUENCER”
@@ -407,7 +380,7 @@ function SpkPreviewCard({ form, amounts }) {
           year: "numeric",
         })}{" "}
         bertempat di Jakarta Selatan dibuat dan ditandatangani Surat
-        Perjanjian Kerjasama ("Perjanjian"), oleh dan antara:
+        Perjanjian Kerja Sama ("Perjanjian"), oleh dan antara:
       </p>
       <p className="mb-2">
         <b>David Jr. M</b>, selaku Direktur Savvy Digital beralamat di{" "}
@@ -455,7 +428,7 @@ function SpkPreviewCard({ form, amounts }) {
         <li>
           Unggah konten yang telah disetujui PIHAK PERTAMA paling
           lambat tanggal{" "}
-          {new Date(form.uploadDeadline).toLocaleDateString("id-ID")}{" "}
+          {parseISODateAsLocal(form.uploadDeadline).toLocaleDateString("id-ID")}{" "}
           atau pada tanggal lain yang disepakati PIHAK PERTAMA.
         </li>
       </ul>
@@ -491,7 +464,7 @@ function SpkPreviewCard({ form, amounts }) {
       </div>
 
       <h3 className="mt-3 font-semibold">
-        PASAL 5 - PERNYATAAN DAN JAMINAN
+        PASAL 3 - PERNYATAAN DAN JAMINAN
       </h3>
       <p className="mb-2">
         PIHAK KEDUA menyatakan akan bertindak secara profesional,
@@ -511,7 +484,7 @@ function SpkPreviewCard({ form, amounts }) {
         kepada PIHAK PERTAMA.
       </p>
 
-      <h3 className="mt-3 font-semibold">PASAL 6 - PENUTUP</h3>
+      <h3 className="mt-3 font-semibold">PASAL 4 - PENUTUP</h3>
       <p className="mb-2">
         Segala perselisihan yang timbul dari Perjanjian ini akan
         diselesaikan terlebih dahulu secara musyawarah untuk mufakat.

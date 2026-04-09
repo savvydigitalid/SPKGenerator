@@ -1,0 +1,8 @@
+<svg width="640" height="200" viewBox="0 0 640 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="200" fill="white"/>
+  <path d="M70 35C96 35 120 46 133 66L107 83C100 73 88 66 73 66C56 66 45 73 45 83C45 95 59 101 89 111C128 124 150 140 150 169C150 201 123 223 80 223C45 223 17 209 3 184L33 166C43 182 59 191 81 191C100 191 114 183 114 170C114 157 103 149 72 139C34 127 10 113 10 84C10 54 35 35 70 35Z" fill="#F59E0B" transform="translate(20,-20)"/>
+  <text x="195" y="108" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="700" fill="#111111">Savvy</text>
+  <text x="198" y="147" font-family="Arial, Helvetica, sans-serif" font-size="30" letter-spacing="12" fill="#111111">DIGITAL</text>
+  <path d="M429 66H454L480 139L506 66H531L492 157H469L429 66Z" fill="#F97316"/>
+  <path d="M536 66H561L587 139L613 66H638L599 157H576L536 66Z" fill="#FB923C"/>
+</svg>
